@@ -36,6 +36,7 @@ interface IMixedRouteQuoterV1 {
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
+        bool stable;
     }
 
     /// @notice Returns the amount out received for a given exact input but for a swap of a single pool

@@ -9,9 +9,9 @@ import '@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraPool.sol';
 import '@cryptoalgebra/integral-core/contracts/interfaces/callback/IAlgebraSwapCallback.sol';
 import '@cryptoalgebra/integral-periphery/contracts/libraries/PoolAddress.sol';
 import '@cryptoalgebra/integral-periphery/contracts/libraries/CallbackValidation.sol';
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
 
 import '../base/ImmutableState.sol';
+import '../interfaces/IBaseV1Pair.sol';
 import '../interfaces/IMixedRouteQuoterV1.sol';
 import '../libraries/PoolTicksCounter.sol';
 import '../libraries/UniswapV2Library.sol';
@@ -51,10 +51,11 @@ contract MixedRouteQuoterV1 is IMixedRouteQuoterV1, IAlgebraSwapCallback, Periph
     function getPairAmountOut(
         uint256 amountIn,
         address tokenIn,
-        address tokenOut
+        address tokenOut,
+        bool stable
     ) private view returns (uint256) {
-        (uint256 reserveIn, uint256 reserveOut) = UniswapV2Library.getReserves(factoryV2, tokenIn, tokenOut);
-        return UniswapV2Library.getAmountOut(amountIn, reserveIn, reserveOut);
+        IBaseV1Pair pair = IBaseV1Pair(UniswapV2Library.pairFor(factoryV2, tokenIn, tokenOut, stable));
+        return pair.getAmountOut(amountIn, tokenIn);
     }
 
     /// @inheritdoc IAlgebraSwapCallback
@@ -154,7 +155,7 @@ contract MixedRouteQuoterV1 is IMixedRouteQuoterV1, IAlgebraSwapCallback, Periph
                 params.sqrtPriceLimitX96 == 0
                     ? (zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1)
                     : params.sqrtPriceLimitX96,
-                abi.encodePacked(params.tokenIn, params.tokenOut)
+                abi.encodePacked(params.tokenIn, params.fee, params.tokenOut)
             )
         {} catch (bytes memory reason) {
             gasEstimate = gasBefore - gasleft();
@@ -169,7 +170,7 @@ contract MixedRouteQuoterV1 is IMixedRouteQuoterV1, IAlgebraSwapCallback, Periph
         override
         returns (uint256 amountOut)
     {
-        amountOut = getPairAmountOut(params.amountIn, params.tokenIn, params.tokenOut);
+        amountOut = getPairAmountOut(params.amountIn, params.tokenIn, params.tokenOut, params.stable);
     }
 
     /// @dev Get the quote for an exactIn swap between an array of V2 and/or V3 pools
@@ -191,8 +192,9 @@ contract MixedRouteQuoterV1 is IMixedRouteQuoterV1, IAlgebraSwapCallback, Periph
             (address tokenIn, address tokenOut, uint24 isV2) = path.decodeFirstPool();
 
             if (isV2 != 0) {
+                bool stable = isV2 == 1 ? false : true;
                 amountIn = quoteExactInputSingleV2(
-                    QuoteExactInputSingleV2Params({tokenIn: tokenIn, tokenOut: tokenOut, amountIn: amountIn})
+                    QuoteExactInputSingleV2Params({tokenIn: tokenIn, tokenOut: tokenOut, amountIn: amountIn, stable: stable})
                 );
             } else {
                 /// the outputs of prior swaps become the inputs to subsequent ones

@@ -46,6 +46,11 @@ export default {
     arbitrumRinkeby: {
       url: `https://rinkeby.arbitrum.io/rpc`,
     },
+    okx: {
+      url: `https://xlayertestrpc.okx.com`,
+      chainId: 195,
+      accounts: [PK],
+    },
     optimismKovan: {
       url: `https://kovan.optimism.io`,
     },
